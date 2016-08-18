@@ -32,6 +32,10 @@
 
 int NumClients = 0;
 char Clients[MAX_CLIENTS][MAX_ID_LEN];
+
+int connect_client(msg_packet_t* shared_msg);
+int disconnect_client(msg_packet_t* shared_msg);
+
 /* message structure for messages in the shared segment */
 /*struct msg_s {
     int type;
@@ -77,23 +81,24 @@ int main(int argc, char *argv[]) {
 		// New Client being added
 		if(shared_msg->connection == CONNECT)
 		{
-			if(NumClients < 10)
+			connect_client(shared_msg);
+	/*		if(NumClients < 10)
 			{
 				strcpy(Clients[NumClients++],shared_msg->sender_id);
-				//NumClients++;
 			}
 			int i;
 			for(i=0; i<NumClients; i++)
 				printf("New Connection, Client: %s\n",Clients[i]);
 			shared_msg->connection = CONNECTED;
 			shared_msg->message_type = NULL_MESSAGE;
-			pthread_mutex_unlock(&shared_msg->mutex_lock);
+	*/		pthread_mutex_unlock(&shared_msg->mutex_lock);
 			continue;
 		}
 	
 		if(shared_msg->connection == DISCONNECT)
 		{	
-			int i;
+			disconnect_client(shared_msg);
+	/*		int i;
 			int client_found = -1;
 			for(i=0; i<NumClients; i++)
 			{
@@ -108,7 +113,7 @@ int main(int argc, char *argv[]) {
 				}
 			}
 			shared_msg->message_type = NULL_MESSAGE;
-			if(--NumClients == 0)
+	*/		if(NumClients == 0)
 			{
 				pthread_mutex_unlock(&shared_msg->mutex_lock);
 				break;
@@ -129,4 +134,36 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+int connect_client(msg_packet_t* shared_msg)
+{
+	if(NumClients < 10)
+        {
+	       strcpy(Clients[NumClients++],shared_msg->sender_id);
+        }
+        int i;
+        for(i=0; i<NumClients; i++)
+        	printf("New Connection, Client: %s\n",Clients[i]);
+        shared_msg->connection = CONNECTED;
+        shared_msg->message_type = NULL_MESSAGE;
+}
+
+int disconnect_client(msg_packet_t* shared_msg)
+{
+	int i;
+        int client_found = -1;
+        for(i=0; i<NumClients; i++)
+        {
+	        if(strcmp(Clients[i],shared_msg->sender_id) == 0)
+        	{
+                	client_found = i;
+                        continue;
+                }
+                if(client_found > -1)
+                {
+                	strcpy(Clients[i-1],Clients[i]);
+                }
+        }
+        shared_msg->message_type = NULL_MESSAGE;
+	NumClients--;
+}
 
