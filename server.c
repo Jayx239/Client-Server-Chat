@@ -82,38 +82,14 @@ int main(int argc, char *argv[]) {
 		if(shared_msg->connection == CONNECT)
 		{
 			connect_client(shared_msg);
-	/*		if(NumClients < 10)
-			{
-				strcpy(Clients[NumClients++],shared_msg->sender_id);
-			}
-			int i;
-			for(i=0; i<NumClients; i++)
-				printf("New Connection, Client: %s\n",Clients[i]);
-			shared_msg->connection = CONNECTED;
-			shared_msg->message_type = NULL_MESSAGE;
-	*/		pthread_mutex_unlock(&shared_msg->mutex_lock);
+			pthread_mutex_unlock(&shared_msg->mutex_lock);
 			continue;
 		}
 	
 		if(shared_msg->connection == DISCONNECT)
 		{	
 			disconnect_client(shared_msg);
-	/*		int i;
-			int client_found = -1;
-			for(i=0; i<NumClients; i++)
-			{
-				if(strcmp(Clients[i],shared_msg->sender_id) == 0)
-				{
-					client_found = i;
-					continue;
-				}
-				if(client_found > -1)
-				{
-					strcpy(Clients[i-1],Clients[i]);
-				}
-			}
-			shared_msg->message_type = NULL_MESSAGE;
-	*/		if(NumClients == 0)
+			if(NumClients == 0)
 			{
 				pthread_mutex_unlock(&shared_msg->mutex_lock);
 				break;
