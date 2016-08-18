@@ -28,6 +28,12 @@
 #define MESSAGE_TYPES               8
 
 int Connected = 0;
+
+void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
+
+void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
+
+
 /* message structure for messages in the shared segment */
 /*struct msg_s {
     int type;
@@ -61,101 +67,64 @@ int main(int argc, char *argv[]) {
     }
 
 
-	
-	//open_connection(Uid,&shared_msg);
 	// Open Connection
-	int is_connected;
-	is_connected  = CONNECT;
-        while(is_connected != CONNECTED)
-	{
-	pthread_mutex_lock(&shared_msg->mutex_lock);
-	if(shared_msg->message_type != NULL_MESSAGE)
-	{
-		pthread_mutex_unlock(&shared_msg->mutex_lock);
-		continue;
-	}
-	shared_msg->message_type = SERVER_MESSAGE;
-        strcpy(shared_msg->sender_id, Uid);
-        strcpy(shared_msg->receiver_id,"");
-        shared_msg->connection = CONNECT;
-	is_connected = CONNECTED;
-        pthread_mutex_unlock(&shared_msg->mutex_lock);
-	}
+	open_connection(Uid,shared_msg);
 	
+	/* 
+ 	Messaging code
+ 	while(condition)
+	{
+		
+	}*/
 
+	// Close connection
+	close_connection(Uid,shared_msg);
 	
-	// Close Connection
-	while(is_connected == CONNECTED)
-	{
-	pthread_mutex_lock(&shared_msg->mutex_lock);
-		if(shared_msg->message_type != NULL_MESSAGE)
-		{
-			pthread_mutex_unlock(&shared_msg->mutex_lock);
-			continue;
-		}
-	shared_msg->message_type = SERVER_MESSAGE;
-        strcpy(shared_msg->sender_id, Uid);
-        strcpy(shared_msg->receiver_id,"");
-        shared_msg->connection = DISCONNECT;
-	is_connected = DISCONNECT;
-        pthread_mutex_unlock(&shared_msg->mutex_lock);
-	}
-
-	//pthread_mutex_lock(&shared_msg->mutex_lock);
-/*	int i;
-	i= 0;
-	while(1)
-	{
-		if(shared_msg->receiver_id == Uid)
-		{
-			printf("%s: %s\n",shared_msg->sender_id, shared_msg->message);
-			strcpy(shared_msg->receiver_id,"");
-			//strcpy(shared_msg->sender_id,Uid)
-			i=SERVER_MESSAGE;
-		}
-		if(i==-1)
-		{
-			strcpy(shared_msg->receiver_id,"");
-			strcpy(shared_msg->sender_id,Uid);
-			
-			
-		}
-	}
-  */  //printf("Shared memory segment allocated correctly (%d bytes).\n", shared_seg_size);
-
-
-//    printf("Message type is %s, content is: %s\n", (char*) shared_msg->sender_id, (char*) shared_msg->receiver_id);
-
-	  /* [uncomment if you wish] requesting the removal of the shm object     --  shm_unlink() */
-    /*if (shm_unlink(SHARED_OBJECT_PATH) != 0) {
-        perror("In shm_unlink()");
-        exit(1);
-    }*/
 
     return 0;
 }
 
 
-void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg)
+void open_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
 {
-	//while(shared_msg->message_type != NULL_MESSAGE)
-	//{
-		
-	//}
-	pthread_mutex_lock(shared_msg->mutex_lock);
-	shared_msg->message_type = SERVER_MESSAGE;
-	strcpy(shared_msg->sender_id, uid);
-	strcpy(shared_msg->receiver_id,"");
-	shared_msg->connection = CONNECT;
-	pthread_mutex_unlock(shared_msg->mutex_lock);
-	//while(shared_msg->connection == CONNECT)
-	//{
+	int is_connected;
+        is_connected  = CONNECT;
+        while(is_connected != CONNECTED)
+        {
+        pthread_mutex_lock(&shared_msg->mutex_lock);
+        if(shared_msg->message_type != NULL_MESSAGE)
+        {
+                pthread_mutex_unlock(&shared_msg->mutex_lock);
+                continue;
+        }
+        shared_msg->message_type = SERVER_MESSAGE;
+        strcpy(shared_msg->sender_id, Uid);
+        strcpy(shared_msg->receiver_id,"");
+        shared_msg->connection = CONNECT;
+        is_connected = CONNECTED;
+        pthread_mutex_unlock(&shared_msg->mutex_lock);
+        }
 
-	//}
-	//if(shared_msg->connection == DISCONNECT)
-	//{
-		
-//		shared_msg->connection = NULL;
-	//}
 }
 
+void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
+{
+	int is_connected;
+	is_connected = CONNECTED;
+	while(is_connected == CONNECTED)
+        {
+        pthread_mutex_lock(&shared_msg->mutex_lock);
+                if(shared_msg->message_type != NULL_MESSAGE)
+                {
+                        pthread_mutex_unlock(&shared_msg->mutex_lock);
+                        continue;
+                }
+        shared_msg->message_type = SERVER_MESSAGE;
+        strcpy(shared_msg->sender_id, Uid);
+        strcpy(shared_msg->receiver_id,"");
+        shared_msg->connection = DISCONNECT;
+        is_connected = DISCONNECT;
+        pthread_mutex_unlock(&shared_msg->mutex_lock);
+        }
+
+}
