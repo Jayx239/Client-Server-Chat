@@ -30,7 +30,7 @@
 #define MAX_MESSAGE_LENGTH      50
 #define MESSAGE_TYPES               8
 
-int NumClients = 0;
+int NumClients;
 char Clients[MAX_CLIENTS][MAX_ID_LEN];
 void send_direct_message(msg_packet_t* shared_msg);
 void send_group_message(msg_packet_t* shared_msg);
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     int fd;
     int shared_seg_size = (sizeof(msg_packet_t));   /* We want a shared segment capable of storing one message */
     msg_packet_t* shared_msg;      /* the shared segment, and head of the messages list */
-    
+   NumClients = 0; 
 
     /* Create the shared memory object using shm_open(). On Linux, by default it is created inside of /dev/shm. */
     fd = shm_open(SHARED_OBJECT_PATH, O_CREAT | O_EXCL | O_RDWR, S_IRWXU | S_IRWXG);
@@ -107,8 +107,10 @@ int main(int argc, char *argv[]) {
 
 			if(shared_msg->message_type == GROUP_MESSAGE)
 			{
-				printf("Recieved message from %s to group: %s",shared_msg->sender_id,shared_msg->message);
+				printf("Recieved message from %s to group: %s and %d",shared_msg->sender_id,shared_msg->message, NumClients);
+				pthread_mutex_unlock(&shared_msg->mutex_lock);
 				send_group_message(shared_msg);
+				pthread_mutex_lock(&shared_msg->mutex_lock);
 
 			}
 			shared_msg->message_type = NULL_MESSAGE;
@@ -136,8 +138,8 @@ int connect_client(msg_packet_t* shared_msg)
 	       strcpy(Clients[NumClients++],shared_msg->sender_id);
         }
         int i;
-        for(i=0; i<NumClients; i++)
-        	printf("New Connection, Client: %s\n",Clients[i]);
+        //for(i=0; i<NumClients; i++)
+        	printf("New Connection, Client: %s\n",Clients[NumClients-1]);
         shared_msg->connection = CONNECTED;
         shared_msg->message_type = NULL_MESSAGE;
 }
@@ -179,7 +181,7 @@ void send_direct_message(msg_packet_t* shared_msg)
 
 void send_group_message(msg_packet_t* shared_msg)
 {
-//	pthread_mutex_lock(&shared_msg->mutex_lock);
+	pthread_mutex_lock(&shared_msg->mutex_lock);
 //	shared_message->message_type = SERVER;
         int i;
 	int message_rec;
@@ -194,6 +196,7 @@ void send_group_message(msg_packet_t* shared_msg)
 			pthread_mutex_lock(&shared_msg->mutex_lock);
 			if(shared_msg->message_type == RESPONSE_MESSAGE)
 				message_rec = 0;
+			pthread_mutex_unlock(&shared_msg->mutex_lock);
 		}
 	}
 }
