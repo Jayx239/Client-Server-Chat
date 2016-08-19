@@ -32,7 +32,8 @@
 
 int NumClients = 0;
 char Clients[MAX_CLIENTS][MAX_ID_LEN];
-
+void send_direct_message(msg_packet_t* shared_msg);
+void send_group_message(msg_packet_t* shared_msg);
 int connect_client(msg_packet_t* shared_msg);
 int disconnect_client(msg_packet_t* shared_msg);
 
@@ -95,6 +96,24 @@ int main(int argc, char *argv[]) {
 				break;
 			}
 		}
+		// Message has been sent by client
+		if(shared_msg->message_type != NULL_MESSAGE)
+		{
+			if(shared_msg->message_type == DIRECT_MESSAGE)
+			{
+				printf("Recieved message from %s for %s: %s",shared_msg->sender_id,shared_msg->receiver_id,shared_msg->message);
+				send_direct_message(shared_msg);
+			}
+
+			if(shared_msg->message_type == GROUP_MESSAGE)
+			{
+				printf("Recieved message from %s to group: %s",shared_msg->sender_id,shared_msg->message);
+				send_group_message(shared_msg);
+
+			}
+			shared_msg->message_type = NULL_MESSAGE;
+			
+		}
 		
 		pthread_mutex_unlock(&shared_msg->mutex_lock);		
 	}
@@ -141,5 +160,41 @@ int disconnect_client(msg_packet_t* shared_msg)
         }
         shared_msg->message_type = NULL_MESSAGE;
 	NumClients--;
+}
+
+void send_direct_message(msg_packet_t* shared_msg)
+{
+	//pthread_mutex_lock(&shared_msg->mutex_lock);
+	shared_msg->message_type = SERVER_MESSAGE;
+	pthread_mutex_unlock(&shared_msg->mutex_lock);
+	while(1)
+	{
+		pthread_mutex_lock(&shared_msg->mutex_lock);
+		if(shared_msg->message_type == RESPONSE_MESSAGE)
+			break;
+		pthread_mutex_unlock(&shared_msg->mutex_lock);	// Not a typo, main thread will unlock the thread on completion
+	}
+	
+}
+
+void send_group_message(msg_packet_t* shared_msg)
+{
+//	pthread_mutex_lock(&shared_msg->mutex_lock);
+//	shared_message->message_type = SERVER;
+        int i;
+	int message_rec;
+	for(i=0; i < NumClients; i++)
+	{
+		shared_msg->message_type = SERVER_MESSAGE;
+		strcpy(shared_msg->receiver_id,Clients[NumClients]);
+		pthread_mutex_unlock(&shared_msg->mutex_lock);
+		message_rec = 1;
+		while(message_rec)
+		{
+			pthread_mutex_lock(&shared_msg->mutex_lock);
+			if(shared_msg->message_type == RESPONSE_MESSAGE)
+				message_rec = 0;
+		}
+	}
 }
 

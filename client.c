@@ -28,11 +28,12 @@
 #define MESSAGE_TYPES               8
 
 int Connected = 0;
-
+char user_message[MAX_MESSAGE_LEN];
+char dm_rec[MAX_ID_LEN];
 void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
 
 void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
-
+void send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN]);
 
 /* message structure for messages in the shared segment */
 /*struct msg_s {
@@ -69,13 +70,26 @@ int main(int argc, char *argv[]) {
 
 	// Open Connection
 	open_connection(Uid,shared_msg);
-	
-	/* 
- 	Messaging code
- 	while(condition)
+	int MESSAGE_TYPE;
+	MESSAGE_TYPE = GROUP_MESSAGE;
+ 	//Messaging code
+ 	while(1)
 	{
-		
-	}*/
+		printf("%d",sizeof(EXIT_COMMAND));
+		fgets(user_message,MAX_MESSAGE_LEN,stdin);
+		if(user_message[0]== '-' && user_message[1] == 'e')
+			break;
+		if(user_message[0] == '-' && user_message[1] == 'd' && user_message[2] == 'm')
+		{
+			printf("Enter recipient for direct message");
+			fgets(dm_rec,MAX_ID_LEN,stdin);
+			MESSAGE_TYPE = DIRECT_MESSAGE;
+		}
+		else
+			strcpy(dm_rec,"");
+	
+		send_message(shared_msg,user_message,Uid, MESSAGE_TYPE, dm_rec);	
+	}
 
 	// Close connection
 	close_connection(Uid,shared_msg);
@@ -127,4 +141,27 @@ void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
         pthread_mutex_unlock(&shared_msg->mutex_lock);
         }
 
+}
+
+void send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN])
+{
+	int msg_type;
+	msg_type  = SERVER_MESSAGE;
+	while(msg_type != NULL_MESSAGE)
+	{
+		pthread_mutex_lock(&shared_msg->mutex_lock);
+		if(shared_msg->message_type == NULL_MESSAGE)
+		{
+			shared_msg->message_type = MESSAGE_TYPE;
+			break;
+		}
+		pthread_mutex_unlock(&shared_msg->mutex_lock);
+	}	
+	
+	if(MESSAGE_TYPE == DIRECT_MESSAGE)
+		strcpy(shared_msg->receiver_id,recipient); 
+	
+	strcpy(shared_msg->sender_id,sender_id);
+	strcpy(shared_msg->message,user_message);
+	pthread_mutex_unlock(&shared_msg->mutex_lock);
 }
