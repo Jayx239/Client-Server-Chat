@@ -32,13 +32,14 @@ char user_message[MAX_MESSAGE_LEN];
 char dm_rec[MAX_ID_LEN];
 int Keep_Alive;
 pthread_mutex_t* user_input_mutex;
-
+int MESSAGE_TYPE;
 
 void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
 
 void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
-void send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN]);
+int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN]);
 void* read_user_input(void* args);
+void clean_id(char id[MAX_ID_LEN]);
 
 /* message structure for messages in the shared segment */
 /*struct msg_s {
@@ -84,7 +85,6 @@ int main(int argc, char *argv[]) {
 	pthread_mutex_init(&user_input_mutex,NULL);
 	int rc = pthread_create(&user_input_thread,NULL,read_user_input,(void*) NULL);
 //	pthread_join(&user_input_thread,NULL);
-	int MESSAGE_TYPE;
 	MESSAGE_TYPE = GROUP_MESSAGE;
  	//Messaging code
  	while(Keep_Alive)
@@ -97,20 +97,14 @@ int main(int argc, char *argv[]) {
 		{
 			//char rec_id[MAX_ID_LEN];
 			//strcpy(rec_id,shared_msg->receiver_id);
-			//int match;
-			//match = 1;
-			//int i;
-			//for(i=0; i<MAX_ID_LEN; i++)
-			//{
-			//	if(shared_msg->receiver_id[i] != Uid[i])
-			//		match = 0;
-			//}
-			//match = memcmp(shared_msg->receiver_id,Uid);
-			//if(match == 0)
-			//{
+			int match;
+			match = strcmp(shared_msg->receiver_id,Uid);
+			if(match == 0)
+			{
+			//	printf("%s %s\n",shared_msg->receiver_id, Uid);
 				printf("%s: %s",shared_msg->sender_id,shared_msg->message);
 				shared_msg->message_type = RESPONSE_MESSAGE;
-			//}
+			}
 		}
 		pthread_mutex_unlock(&shared_msg->mutex_lock);
 		
@@ -118,10 +112,11 @@ int main(int argc, char *argv[]) {
 		pthread_mutex_lock(&user_input_mutex);
 		if(strcmp(user_message,"") != 0)
 		{
-			send_message(shared_msg,user_message,Uid, MESSAGE_TYPE, dm_rec);
-			strcpy(user_message,"");
+			if(send_message(shared_msg,user_message,Uid, MESSAGE_TYPE, dm_rec))
+				strcpy(user_message,"");
+				
 		} 
-		pthread_mutex_unlock(&user_input_mutex);	
+		pthread_mutex_unlock(&user_input_mutex);
 	}
 
 	// Close connection
@@ -176,48 +171,62 @@ void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
 
 }
 
-void send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN])
+int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN])
 {
 	int msg_type;
 	msg_type  = SERVER_MESSAGE;
-	while(msg_type != NULL_MESSAGE)
+	while(1)
 	{
 		pthread_mutex_lock(&shared_msg->mutex_lock);
 		if(shared_msg->message_type == NULL_MESSAGE)
 		{
-			shared_msg->message_type = MESSAGE_TYPE;
-			break;
+			//shared_msg->message_type = MESSAGE_TYPE;
+        		strncpy(shared_msg->receiver_id,dm_rec,MAX_ID_LEN);
+
+		        strcpy(shared_msg->sender_id,sender_id);
+		        strncpy(shared_msg->message,user_message,MAX_MESSAGE_LEN);
+        		shared_msg->message_type = MESSAGE_TYPE;
+		        pthread_mutex_unlock(&shared_msg->mutex_lock);
+			return 1;
 		}
+		if(shared_msg->message_type == SERVER_MESSAGE && strcmp(shared_msg->receiver_id,sender_id) == 0)
+		{
+			pthread_mutex_unlock(&shared_msg->mutex_lock);
+			return 0;
+		}
+		printf("waiting");
 		pthread_mutex_unlock(&shared_msg->mutex_lock);
 	}	
 	
-	if(MESSAGE_TYPE == DIRECT_MESSAGE)
-		strcpy(shared_msg->receiver_id,recipient); 
-	
-	strcpy(shared_msg->sender_id,sender_id);
-	strcpy(shared_msg->message,user_message);
-	pthread_mutex_unlock(&shared_msg->mutex_lock);
 }
 
 void* read_user_input(void* args)
 {
 	int user_message_set;
-	int MESSAGE_TYPE;
-	MESSAGE_TYPE = GROUP_MESSAGE;
+	//MESSAGE_TYPE = GROUP_MESSAGE;
 	while(1)
 	{
-	char temp_message[MAX_MESSAGE_LEN];
-	fgets(temp_message,MAX_MESSAGE_LEN,stdin);
-	 if(temp_message[0]== '-' && temp_message[1] == 'e')
+		char temp_message[MAX_MESSAGE_LEN];
+		fgets(temp_message,MAX_MESSAGE_LEN,stdin);
+		if(strncmp(temp_message,EXIT_COMMAND,EXIT_COMMAND_LEN) == 0)//temp_message[0]== '-' && temp_message[1] == 'e')
                         break;
-                if(temp_message[0] == '-' && temp_message[1] == 'd' && temp_message[2] == 'm')
+                if(strncmp(temp_message,DIRECT_MESSAGE_COMMAND,DIRECT_MESSAGE_COMMAND_LEN) == 0)//temp_message[0] == '-' && temp_message[1] == 'd' && temp_message[2] == 'm')
                 {
-                        printf("Enter recipient for direct message");
+                        printf("Enter recipient for direct message: ");
                         fgets(dm_rec,MAX_ID_LEN,stdin);
-                        MESSAGE_TYPE = DIRECT_MESSAGE;
+                        clean_id(&dm_rec);
+			printf("client send rec: %s",dm_rec);
+			//MESSAGE_TYPE = DIRECT_MESSAGE;
+			printf("Enter Message: ");
+			fgets(temp_message,MAX_MESSAGE_LEN,stdin);
+			
+			MESSAGE_TYPE = DIRECT_MESSAGE;
                 }
                 else
-                        strcpy(dm_rec,"");
+		{
+               		MESSAGE_TYPE = GROUP_MESSAGE;
+		      // strcpy(dm_rec,"");
+		}
 		user_message_set = 1;
 		while(user_message_set){
 			pthread_mutex_lock(&user_input_mutex);
@@ -230,4 +239,18 @@ void* read_user_input(void* args)
 		}
 	}
 	Keep_Alive = 0;
+}
+
+void clean_id(char id[MAX_ID_LEN])
+{
+	int i;
+                        for(i=0; i<MAX_ID_LEN; i++)
+                        {
+                                if(id[i] == '\n')
+                                {
+                                        id[i] = '\0';
+                                        break;
+                                }
+                        }
+
 }

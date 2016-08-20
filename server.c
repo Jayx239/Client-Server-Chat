@@ -34,9 +34,11 @@ int NumClients;
 char Clients[MAX_CLIENTS][MAX_ID_LEN];
 void send_direct_message(msg_packet_t* shared_msg);
 void send_group_message(msg_packet_t* shared_msg);
+void wait_for_response(msg_packet_t* shared_msg);
 int connect_client(msg_packet_t* shared_msg);
 int disconnect_client(msg_packet_t* shared_msg);
-
+void send_error_message(msg_packet_t* shared_msg, int error_type);
+int valid_recipient(char receiver_id[MAX_ID_LEN]);
 /* message structure for messages in the shared segment */
 /*struct msg_s {
     int type;
@@ -82,7 +84,7 @@ int main(int argc, char *argv[]) {
 		// New Client being added
 		if(shared_msg->connection == CONNECT)
 		{
-			connect_client(shared_msg);
+			connect_client(shared_msg);	
 			pthread_mutex_unlock(&shared_msg->mutex_lock);
 			continue;
 		}
@@ -102,12 +104,21 @@ int main(int argc, char *argv[]) {
 			if(shared_msg->message_type == DIRECT_MESSAGE)
 			{
 				printf("Recieved message from %s for %s: %s",shared_msg->sender_id,shared_msg->receiver_id,shared_msg->message);
-				send_direct_message(shared_msg);
+				if(valid_recipient(shared_msg->receiver_id))
+				{
+					pthread_mutex_unlock(&shared_msg->mutex_lock);
+					send_direct_message(shared_msg);
+					pthread_mutex_lock(&shared_msg->mutex_lock);
+				}
+				else
+				{
+					send_error_message(shared_msg,INVALID_RECIPIENT);
+				}
 			}
 
 			if(shared_msg->message_type == GROUP_MESSAGE)
 			{
-				printf("Recieved message from %s to group: %s and %d",shared_msg->sender_id,shared_msg->message, NumClients);
+				printf("Recieved message from %s to group: %s",shared_msg->sender_id,shared_msg->message);
 				pthread_mutex_unlock(&shared_msg->mutex_lock);
 				send_group_message(shared_msg);
 				pthread_mutex_lock(&shared_msg->mutex_lock);
@@ -160,44 +171,77 @@ int disconnect_client(msg_packet_t* shared_msg)
                 	strcpy(Clients[i-1],Clients[i]);
                 }
         }
+	shared_msg->connection = CONNECTED;
         shared_msg->message_type = NULL_MESSAGE;
 	NumClients--;
 }
 
 void send_direct_message(msg_packet_t* shared_msg)
 {
-	//pthread_mutex_lock(&shared_msg->mutex_lock);
+	printf("sent direct message\n");
+	pthread_mutex_lock(&shared_msg->mutex_lock);
+	printf("recip: %s sender: %s\n",shared_msg->receiver_id,shared_msg->sender_id);
+
 	shared_msg->message_type = SERVER_MESSAGE;
+	//shared_msg->message_type = DIRECT_MESSAGE;
 	pthread_mutex_unlock(&shared_msg->mutex_lock);
-	while(1)
-	{
-		pthread_mutex_lock(&shared_msg->mutex_lock);
-		if(shared_msg->message_type == RESPONSE_MESSAGE)
-			break;
-		pthread_mutex_unlock(&shared_msg->mutex_lock);	// Not a typo, main thread will unlock the thread on completion
-	}
-	
+	wait_for_response(shared_msg);		
 }
 
 void send_group_message(msg_packet_t* shared_msg)
 {
-	pthread_mutex_lock(&shared_msg->mutex_lock);
+	printf("Sent group message\n");
 //	shared_message->message_type = SERVER;
         int i;
-	int message_rec;
 	for(i=0; i < NumClients; i++)
-	{
-		shared_msg->message_type = SERVER_MESSAGE;
-		strcpy(shared_msg->receiver_id,Clients[NumClients]);
-		pthread_mutex_unlock(&shared_msg->mutex_lock);
-		message_rec = 1;
-		while(message_rec)
-		{
-			pthread_mutex_lock(&shared_msg->mutex_lock);
-			if(shared_msg->message_type == RESPONSE_MESSAGE)
-				message_rec = 0;
+	{	pthread_mutex_lock(&shared_msg->mutex_lock);
+		if(strcmp(shared_msg->sender_id,Clients[i]) == 0)
+		{	
 			pthread_mutex_unlock(&shared_msg->mutex_lock);
+			continue;
 		}
+		shared_msg->message_type = SERVER_MESSAGE;
+		strcpy(shared_msg->receiver_id,Clients[i]);
+		pthread_mutex_unlock(&shared_msg->mutex_lock);
+		wait_for_response(shared_msg);
 	}
 }
 
+void wait_for_response(msg_packet_t* shared_msg)
+{
+	printf("waiting\n");
+	while(1)
+        {
+                pthread_mutex_lock(&shared_msg->mutex_lock);
+//		printf("waiting");
+                if(shared_msg->message_type != SERVER_MESSAGE)//shared_msg->message_type == RESPONSE_MESSAGE || shared_msg->message_type == NULL_MESSAGE)
+                        break;
+                pthread_mutex_unlock(&shared_msg->mutex_lock);
+        }
+	printf("done waiting");
+	 pthread_mutex_unlock(&shared_msg->mutex_lock);
+}
+
+int valid_recipient(char receiver_id[MAX_ID_LEN])
+{
+	int i;
+	for(i=0; i<NumClients; i++)
+	{
+		if(strcmp(receiver_id,Clients[i]) == 0)
+			return 1;
+	}
+	return 0;
+}
+
+
+void send_error_message(msg_packet_t* shared_msg, int error_type)
+{
+	printf("send error");
+	if(error_type == INVALID_RECIPIENT)
+	{
+		char rec_id[MAX_ID_LEN];
+		strcpy(rec_id,shared_msg->receiver_id);
+		strcpy(shared_msg->receiver_id,shared_msg->sender_id);
+		strcpy(shared_msg->sender_id,"SERVER");
+	}
+}
