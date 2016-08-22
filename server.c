@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "data_types.h"
+#include <signal.h>
 
 #define SHARED_OBJECT_PATH         "/messenger"
 #define MAX_MESSAGE_LENGTH      50
@@ -32,6 +33,8 @@
 
 int NumClients;
 char Clients[MAX_CLIENTS][MAX_ID_LEN];
+int Keep_Alive;
+
 void send_direct_message(msg_packet_t* shared_msg);
 void send_group_message(msg_packet_t* shared_msg);
 void wait_for_response(msg_packet_t* shared_msg);
@@ -39,6 +42,7 @@ int connect_client(msg_packet_t* shared_msg);
 int disconnect_client(msg_packet_t* shared_msg);
 void send_error_message(msg_packet_t* shared_msg, int error_type);
 int valid_recipient(char receiver_id[MAX_ID_LEN]);
+void clean_exit(int dum);
 /* message structure for messages in the shared segment */
 /*struct msg_s {
     int type;
@@ -51,6 +55,8 @@ int main(int argc, char *argv[]) {
     int shared_seg_size = (sizeof(msg_packet_t));   /* We want a shared segment capable of storing one message */
     msg_packet_t* shared_msg;      /* the shared segment, and head of the messages list */
    NumClients = 0; 
+	Keep_Alive = 1;
+	signal(SIGINT,clean_exit);
 
     /* Create the shared memory object using shm_open(). On Linux, by default it is created inside of /dev/shm. */
     fd = shm_open(SHARED_OBJECT_PATH, O_CREAT | O_EXCL | O_RDWR, S_IRWXU | S_IRWXG);
@@ -77,7 +83,7 @@ int main(int argc, char *argv[]) {
 	pthread_mutex_lock(&shared_msg->mutex_lock);
 	shared_msg->message_type = NULL_MESSAGE;
 	pthread_mutex_unlock(&shared_msg->mutex_lock);
-	while(1)
+	while(Keep_Alive)
 	{
 		
 		pthread_mutex_lock(&shared_msg->mutex_lock);
@@ -244,4 +250,9 @@ void send_error_message(msg_packet_t* shared_msg, int error_type)
 		strcpy(shared_msg->receiver_id,shared_msg->sender_id);
 		strcpy(shared_msg->sender_id,"SERVER");
 	}
+}
+
+void clean_exit(int dum)
+{
+	Keep_Alive = 0;
 }

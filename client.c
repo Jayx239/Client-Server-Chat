@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "data_types.h"
-
+#include <signal.h>
 
 #define SHARED_OBJECT_PATH         "/messenger"      
 /* maximum length of the content of the message */
@@ -40,7 +40,7 @@ void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
 int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN]);
 void* read_user_input(void* args);
 void clean_id(char id[MAX_ID_LEN]);
-
+void clean_exit(int dum);
 /* message structure for messages in the shared segment */
 /*struct msg_s {
     int type;
@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
 		strcpy(Uid,"foofag");
 	
 	Keep_Alive = 1;
+	signal(SIGINT,clean_exit);
     int fd;
     int shared_seg_size = (sizeof(msg_packet_t));   /* We want a shared segment capable of storing one message */
     msg_packet_t* shared_msg;      /* The shared segment */
@@ -254,3 +255,9 @@ void clean_id(char id[MAX_ID_LEN])
                         }
 
 }
+
+void clean_exit(int dum)
+{
+	Keep_Alive = 0;
+}
+
