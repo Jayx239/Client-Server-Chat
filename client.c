@@ -20,7 +20,7 @@
 #include <time.h>
 #include "data_types.h"
 #include <signal.h>
-
+#include <stdio.h>
 #define SHARED_OBJECT_PATH         "/messenger"      
 /* maximum length of the content of the message */
 #define MAX_MESSAGE_LENGTH      50
@@ -29,7 +29,7 @@
 
 int Connected = 0;
 char user_message[MAX_MESSAGE_LEN];
-char dm_rec[MAX_ID_LEN];
+char dm_rec[MAX_ID_LEN] = "foofoo";
 int Keep_Alive;
 pthread_mutex_t* user_input_mutex;
 int MESSAGE_TYPE;
@@ -37,7 +37,7 @@ int MESSAGE_TYPE;
 void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
 
 void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
-int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN]);
+int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE);
 void* read_user_input(void* args);
 void clean_id(char id[MAX_ID_LEN]);
 void clean_exit(int dum);
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
 	
 	Keep_Alive = 1;
 	signal(SIGINT,clean_exit);
-    int fd;
+	int fd;
     int shared_seg_size = (sizeof(msg_packet_t));   /* We want a shared segment capable of storing one message */
     msg_packet_t* shared_msg;      /* The shared segment */
     
@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
 		pthread_mutex_lock(&user_input_mutex);
 		if(strcmp(user_message,"") != 0)
 		{
-			if(send_message(shared_msg,user_message,Uid, MESSAGE_TYPE, dm_rec))
+			if(send_message(shared_msg,user_message,Uid, MESSAGE_TYPE) == 1)
 				strcpy(user_message,"");
 				
 		} 
@@ -132,7 +132,7 @@ void open_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
 {
 	int is_connected;
         is_connected  = CONNECT;
-        while(is_connected != CONNECTED)
+        while(is_connected != CONNECTED && Keep_Alive)
         {
         pthread_mutex_lock(&shared_msg->mutex_lock);
         if(shared_msg->message_type != NULL_MESSAGE)
@@ -168,34 +168,36 @@ void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
         shared_msg->connection = DISCONNECT;
         is_connected = DISCONNECT;
         pthread_mutex_unlock(&shared_msg->mutex_lock);
+
+		if(!Keep_Alive)
+			break;
         }
 
 }
 
-int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, char recipient[MAX_ID_LEN])
+int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE)
 {
 	int msg_type;
 	msg_type  = SERVER_MESSAGE;
-	while(1)
+	while(Keep_Alive)
 	{
 		pthread_mutex_lock(&shared_msg->mutex_lock);
 		if(shared_msg->message_type == NULL_MESSAGE)
 		{
 			//shared_msg->message_type = MESSAGE_TYPE;
-        		strncpy(shared_msg->receiver_id,dm_rec,MAX_ID_LEN);
-
+        		strcpy(shared_msg->receiver_id,dm_rec);
 		        strcpy(shared_msg->sender_id,sender_id);
 		        strncpy(shared_msg->message,user_message,MAX_MESSAGE_LEN);
         		shared_msg->message_type = MESSAGE_TYPE;
 		        pthread_mutex_unlock(&shared_msg->mutex_lock);
 			return 1;
 		}
-		if(shared_msg->message_type == SERVER_MESSAGE && strcmp(shared_msg->receiver_id,sender_id) == 0)
+		if(shared_msg->message_type == SERVER_MESSAGE)// && strcmp(shared_msg->receiver_id,sender_id) == 0)
 		{
 			pthread_mutex_unlock(&shared_msg->mutex_lock);
 			return 0;
 		}
-		printf("waiting");
+		//printf("waiting");
 		pthread_mutex_unlock(&shared_msg->mutex_lock);
 	}	
 	
@@ -204,8 +206,10 @@ int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],cha
 void* read_user_input(void* args)
 {
 	int user_message_set;
+	char* rec;
+	rec = (char*) malloc(sizeof(char)* MAX_ID_LEN);
 	//MESSAGE_TYPE = GROUP_MESSAGE;
-	while(1)
+	while(Keep_Alive)
 	{
 		char temp_message[MAX_MESSAGE_LEN];
 		fgets(temp_message,MAX_MESSAGE_LEN,stdin);
@@ -213,10 +217,12 @@ void* read_user_input(void* args)
                         break;
                 if(strncmp(temp_message,DIRECT_MESSAGE_COMMAND,DIRECT_MESSAGE_COMMAND_LEN) == 0)//temp_message[0] == '-' && temp_message[1] == 'd' && temp_message[2] == 'm')
                 {
+		//	MESSAGE_TYPE = DIRECT_MESSAGE;
                         printf("Enter recipient for direct message: ");
-                        fgets(dm_rec,MAX_ID_LEN,stdin);
-                        clean_id(&dm_rec);
-			printf("client send rec: %s",dm_rec);
+                        gets(rec);
+			//fgets(dm_rec, MAX_ID_LEN,stdin);
+                        //clean_id(dm_rec);
+			//printf("client send rec: %s", rec);
 			//MESSAGE_TYPE = DIRECT_MESSAGE;
 			printf("Enter Message: ");
 			fgets(temp_message,MAX_MESSAGE_LEN,stdin);
@@ -229,10 +235,11 @@ void* read_user_input(void* args)
 		      // strcpy(dm_rec,"");
 		}
 		user_message_set = 1;
-		while(user_message_set){
+		while(user_message_set && Keep_Alive){
 			pthread_mutex_lock(&user_input_mutex);
 			if(strcmp(user_message,"") == 0)
 			{
+				strcpy(&dm_rec,rec);
 				strcpy(user_message,temp_message);
 				user_message_set = 0;
 			}
@@ -247,12 +254,14 @@ void clean_id(char id[MAX_ID_LEN])
 	int i;
                         for(i=0; i<MAX_ID_LEN; i++)
                         {
-                                if(id[i] == '\n')
+				printf("%s\n",id[i]);
+                                if(id[i] == '\n' || id[i] == '\t')
                                 {
                                         id[i] = '\0';
                                         break;
                                 }
                         }
+			id[MAX_ID_LEN-1] = '\0';
 
 }
 

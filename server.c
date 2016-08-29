@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 			if(shared_msg->message_type == DIRECT_MESSAGE)
 			{
 				printf("Recieved message from %s for %s: %s",shared_msg->sender_id,shared_msg->receiver_id,shared_msg->message);
-				if(valid_recipient(shared_msg->receiver_id))
+				if(valid_recipient(shared_msg->receiver_id) == 1)
 				{
 					pthread_mutex_unlock(&shared_msg->mutex_lock);
 					send_direct_message(shared_msg);
@@ -118,7 +118,9 @@ int main(int argc, char *argv[]) {
 				}
 				else
 				{
+					pthread_mutex_unlock(&shared_msg->mutex_lock);
 					send_error_message(shared_msg,INVALID_RECIPIENT);
+					pthread_mutex_lock(&shared_msg->mutex_lock);
 				}
 			}
 
@@ -215,16 +217,19 @@ void send_group_message(msg_packet_t* shared_msg)
 
 void wait_for_response(msg_packet_t* shared_msg)
 {
-	printf("waiting\n");
-	while(1)
+	//printf("waiting\n");
+	while(Keep_Alive)
         {
                 pthread_mutex_lock(&shared_msg->mutex_lock);
 //		printf("waiting");
                 if(shared_msg->message_type != SERVER_MESSAGE)//shared_msg->message_type == RESPONSE_MESSAGE || shared_msg->message_type == NULL_MESSAGE)
+		{
+			pthread_mutex_unlock(&shared_msg->mutex_lock);
                         break;
+		}
                 pthread_mutex_unlock(&shared_msg->mutex_lock);
         }
-	printf("done waiting");
+	//printf("done waiting");
 	 pthread_mutex_unlock(&shared_msg->mutex_lock);
 }
 
@@ -236,19 +241,24 @@ int valid_recipient(char receiver_id[MAX_ID_LEN])
 		if(strcmp(receiver_id,Clients[i]) == 0)
 			return 1;
 	}
+	printf("Invalid Recipient: %s\n",receiver_id);
 	return 0;
 }
 
 
 void send_error_message(msg_packet_t* shared_msg, int error_type)
 {
-	printf("send error");
+	pthread_mutex_lock(&shared_msg->mutex_lock);
+	printf("Send Error: %d\n",error_type);
 	if(error_type == INVALID_RECIPIENT)
 	{
+	//	printf("\nerror_type= inv rec\n");
 		char rec_id[MAX_ID_LEN];
 		strcpy(rec_id,shared_msg->receiver_id);
 		strcpy(shared_msg->receiver_id,shared_msg->sender_id);
 		strcpy(shared_msg->sender_id,"SERVER");
+		shared_msg->message_type = SERVER_MESSAGE;
+		pthread_mutex_unlock(&shared_msg->mutex_lock);
 	}
 }
 
