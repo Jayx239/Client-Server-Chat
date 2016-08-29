@@ -38,7 +38,7 @@ typedef struct message_packet{
 	pthread_mutex_t* mutex_lock;
 }msg_packet_t;
 
-typdef struct group_list{
+typedef struct group_list{
 	char u_id;
 	int group_num;
 }group_list_t;
