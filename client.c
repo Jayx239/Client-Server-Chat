@@ -38,7 +38,6 @@ void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg, int group_i
 void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg, int group_id);
 int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, int group_id);
 void* read_user_input(void* args);
-void clean_id(char id[MAX_ID_LEN]);
 void clean_exit(int dum);
 
 int main(int argc, char *argv[]) {
