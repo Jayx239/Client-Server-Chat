@@ -33,6 +33,7 @@
 
 int NumClients;
 char Clients[MAX_CLIENTS][MAX_ID_LEN];
+group_list_t Groups[MAX_CLIENTS];
 int Keep_Alive;
 
 void send_direct_message(msg_packet_t* shared_msg);
@@ -40,14 +41,10 @@ void send_group_message(msg_packet_t* shared_msg);
 void wait_for_response(msg_packet_t* shared_msg);
 int connect_client(msg_packet_t* shared_msg);
 int disconnect_client(msg_packet_t* shared_msg);
+int group_contains(int group_id);
 void send_error_message(msg_packet_t* shared_msg, int error_type);
 int valid_recipient(char receiver_id[MAX_ID_LEN]);
 void clean_exit(int dum);
-/* message structure for messages in the shared segment */
-/*struct msg_s {
-  int type;
-  char content[MAX_MESSAGE_LENGTH];
-  };*/
 
 
 int main(int argc, char *argv[]) {
@@ -132,7 +129,8 @@ int main(int argc, char *argv[]) {
 				pthread_mutex_lock(&shared_msg->mutex_lock);
 
 			}
-			shared_msg->message_type = NULL_MESSAGE;
+			if(shared_msg->message_type != SERVER_MESSAGE)
+				shared_msg->message_type = NULL_MESSAGE;
 
 		}
 
@@ -154,15 +152,44 @@ int connect_client(msg_packet_t* shared_msg)
 {
 	if(NumClients < 10)
 	{
-		strcpy(Clients[NumClients++],shared_msg->sender_id);
+		char group_status_msg[MAX_MESSAGE_LEN];
+		if(group_contains(shared_msg->group_id) == 0)
+		{
+			snprintf(group_status_msg,MAX_MESSAGE_LEN,"Chat group %i not found...\nCreating group %i\n",shared_msg->group_id,shared_msg->group_id);
+		}
+		else
+		{
+			snprintf(group_status_msg,MAX_MESSAGE_LEN,"Chat group %i joined\n",shared_msg->group_id);
+		}
+		strcpy(Groups[NumClients].u_id,shared_msg->sender_id);
+                Groups[NumClients].group_id = shared_msg->group_id;
+                strcpy(Clients[NumClients++],shared_msg->sender_id);
+
+
+		strcpy(shared_msg->receiver_id,shared_msg->sender_id);
+                strcpy(shared_msg->sender_id,"SERV");
+                strcpy(shared_msg->message,group_status_msg);
+
+
 	}
 	int i;
 	//for(i=0; i<NumClients; i++)
-	printf("New Connection, Client: %s\n",Clients[NumClients-1]);
+	printf("New Connection, Client: %s Group: %d\n",Clients[NumClients-1], shared_msg->group_id);
 	shared_msg->connection = CONNECTED;
-	shared_msg->message_type = NULL_MESSAGE;
+	shared_msg->message_type = SERVER_MESSAGE;
 }
 
+int group_contains(int group_id)
+{
+	int i;
+	for(i = 0; i<NumClients; i++)
+	{
+		if(Groups[i].group_id == group_id)
+			return 1;
+	}
+	
+	return 0;
+}
 int disconnect_client(msg_packet_t* shared_msg)
 {
 	int i;
@@ -171,12 +198,15 @@ int disconnect_client(msg_packet_t* shared_msg)
 	{
 		if(strcmp(Clients[i],shared_msg->sender_id) == 0)
 		{
+			strcpy(Clients[i],"     ");
+			strcpy(Groups[i].u_id, "     ");
 			client_found = i;
 			continue;
 		}
 		if(client_found > -1)
 		{
 			strcpy(Clients[i-1],Clients[i]);
+			Groups[i-1] = Groups[i];
 		}
 	}
 	shared_msg->connection = CONNECTED;
@@ -186,33 +216,41 @@ int disconnect_client(msg_packet_t* shared_msg)
 
 void send_direct_message(msg_packet_t* shared_msg)
 {
-	printf("sent direct message\n");
+	printf("sending direct message\n");
 	pthread_mutex_lock(&shared_msg->mutex_lock);
 	printf("recip: %s sender: %s\n",shared_msg->receiver_id,shared_msg->sender_id);
 
 	shared_msg->message_type = SERVER_MESSAGE;
 	//shared_msg->message_type = DIRECT_MESSAGE;
 	pthread_mutex_unlock(&shared_msg->mutex_lock);
-	wait_for_response(shared_msg);		
+	wait_for_response(shared_msg);
+	printf("Response Received\n");
 }
 
 void send_group_message(msg_packet_t* shared_msg)
 {
-	printf("Sent group message\n");
+	pthread_mutex_lock(&shared_msg->mutex_lock);
+	printf("Sending group message to group: %d\n",shared_msg->group_id);
+	pthread_mutex_unlock(&shared_msg->mutex_lock);
 	//	shared_message->message_type = SERVER;
 	int i;
 	for(i=0; i < NumClients; i++)
-	{	pthread_mutex_lock(&shared_msg->mutex_lock);
-		if(strcmp(shared_msg->sender_id,Clients[i]) == 0)
+	{	
+		pthread_mutex_lock(&shared_msg->mutex_lock);
+		if(strcmp(shared_msg->sender_id,Clients[i]) == 0 || shared_msg->group_id != Groups[i].group_id)
 		{	
 			pthread_mutex_unlock(&shared_msg->mutex_lock);
 			continue;
 		}
+		printf("Sent to %s... ", Clients[i]);
 		shared_msg->message_type = SERVER_MESSAGE;
 		strcpy(shared_msg->receiver_id,Clients[i]);
 		pthread_mutex_unlock(&shared_msg->mutex_lock);
 		wait_for_response(shared_msg);
+		printf("Response Received\n");
 	}
+	printf("Sent group message\n");
+
 }
 
 void wait_for_response(msg_packet_t* shared_msg)
@@ -249,17 +287,22 @@ int valid_recipient(char receiver_id[MAX_ID_LEN])
 void send_error_message(msg_packet_t* shared_msg, int error_type)
 {
 	pthread_mutex_lock(&shared_msg->mutex_lock);
-	printf("Send Error: %d\n",error_type);
+	printf("Sending Error Message: %d\n",error_type);
 	if(error_type == INVALID_RECIPIENT)
 	{
-		//	printf("\nerror_type= inv rec\n");
 		char rec_id[MAX_ID_LEN];
 		strcpy(rec_id,shared_msg->receiver_id);
-		strcpy(shared_msg->receiver_id,shared_msg->sender_id);
-		strcpy(shared_msg->sender_id,"SERVER");
+		strncpy(shared_msg->receiver_id,shared_msg->sender_id,MAX_ID_LEN);
+		strcpy(shared_msg->sender_id,"ERROR");
 		shared_msg->message_type = SERVER_MESSAGE;
+		snprintf(shared_msg->message,MAX_MESSAGE_LEN,"Invalid Recipient Entered: %s\n",rec_id);	
 		pthread_mutex_unlock(&shared_msg->mutex_lock);
+		
+		wait_for_response(shared_msg);
+		pthread_mutex_lock(&shared_msg->mutex_lock);
+		printf("Response Received\n");
 	}
+	pthread_mutex_unlock(&shared_msg->mutex_lock);
 }
 
 void clean_exit(int dum)

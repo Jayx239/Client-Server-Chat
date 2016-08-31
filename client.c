@@ -33,11 +33,12 @@ char dm_rec[MAX_ID_LEN] = "foofoo";
 int Keep_Alive;
 pthread_mutex_t* user_input_mutex;
 int MESSAGE_TYPE;
+//int Group_Id;
 
-void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
+void open_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg, int group_id);
 
-void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg);
-int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE);
+void close_connection(char uid[MAX_ID_LEN], msg_packet_t* shared_msg, int group_id);
+int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, int group_id);
 void* read_user_input(void* args);
 void clean_id(char id[MAX_ID_LEN]);
 void clean_exit(int dum);
@@ -50,10 +51,9 @@ void clean_exit(int dum);
 
 int main(int argc, char *argv[]) {
 	char Uid[MAX_ID_LEN];
-	if(argc >1)
-		strcpy(Uid,argv[1]);
-	else
-		strcpy(Uid,"foofag");
+	int group_id;
+	group_id = atoi(argv[2]);	// argv[2]
+	strcpy(Uid,argv[1]);
 
 	Keep_Alive = 1;
 	signal(SIGINT,clean_exit);
@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 	/* Open the shared memory object using shm_open()  in read-only mode */
 	fd = shm_open(SHARED_OBJECT_PATH, O_RDWR, S_IRWXU | S_IRWXG);
 	if (fd < 0) {
-		perror("In shm_open()");
+		perror("Server is not running");//In shm_open()");
 		exit(1);
 	}
 	printf("Opened shared memory object %s\n", SHARED_OBJECT_PATH);
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
 
 
 	// Open Connection
-	open_connection(Uid,shared_msg);
+	open_connection(Uid,shared_msg,group_id);
 	pthread_t* user_input_thread;
 	strcpy(user_message,"");
 
@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
 		pthread_mutex_lock(&user_input_mutex);
 		if(strcmp(user_message,"") != 0)
 		{
-			if(send_message(shared_msg,user_message,Uid, MESSAGE_TYPE) == 1)
+			if(send_message(shared_msg,user_message,Uid, MESSAGE_TYPE,group_id) == 1)
 				strcpy(user_message,"");
 
 		} 
@@ -121,14 +121,14 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Close connection
-	close_connection(Uid,shared_msg);
+	close_connection(Uid,shared_msg,group_id);
 
 
 	return 0;
 }
 
 
-void open_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
+void open_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg, int group_id)
 {
 	int is_connected;
 	is_connected  = CONNECT;
@@ -142,6 +142,7 @@ void open_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
 		}
 		shared_msg->message_type = SERVER_MESSAGE;
 		strcpy(shared_msg->sender_id, Uid);
+		shared_msg->group_id = group_id;
 		strcpy(shared_msg->receiver_id,"");
 		shared_msg->connection = CONNECT;
 		is_connected = CONNECTED;
@@ -150,12 +151,15 @@ void open_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
 
 }
 
-void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
+void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg, int group_id)
 {
+	unsigned int time_out;
+	time_out = 2;
 	int is_connected;
 	is_connected = CONNECTED;
-	while(is_connected == CONNECTED)
+	while(is_connected == CONNECTED || time_out != 1)
 	{
+		time_out++;
 		pthread_mutex_lock(&shared_msg->mutex_lock);
 		if(shared_msg->message_type != NULL_MESSAGE)
 		{
@@ -164,6 +168,7 @@ void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
 		}
 		shared_msg->message_type = SERVER_MESSAGE;
 		strcpy(shared_msg->sender_id, Uid);
+		shared_msg->group_id = group_id;
 		strcpy(shared_msg->receiver_id,"");
 		shared_msg->connection = DISCONNECT;
 		is_connected = DISCONNECT;
@@ -172,10 +177,12 @@ void close_connection(char Uid[MAX_ID_LEN], msg_packet_t* shared_msg)
 		if(!Keep_Alive)
 			break;
 	}
+	if(time_out == 0)
+		printf("Timeout on disconnect");
 
 }
 
-int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE)
+int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],char sender_id[MAX_ID_LEN], int MESSAGE_TYPE, int group_id)
 {
 	int msg_type;
 	msg_type  = SERVER_MESSAGE;
@@ -186,6 +193,7 @@ int send_message(msg_packet_t* shared_msg,char user_message[MAX_MESSAGE_LEN],cha
 		{
 			//shared_msg->message_type = MESSAGE_TYPE;
 			strcpy(shared_msg->receiver_id,dm_rec);
+			shared_msg->group_id = group_id;
 			strcpy(shared_msg->sender_id,sender_id);
 			strncpy(shared_msg->message,user_message,MAX_MESSAGE_LEN);
 			shared_msg->message_type = MESSAGE_TYPE;

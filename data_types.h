@@ -30,6 +30,7 @@
 
 
 typedef struct message_packet{
+	int group_id;
 	int message_type;
 	char sender_id[MAX_ID_LEN];
 	char receiver_id[MAX_ID_LEN];
@@ -39,8 +40,8 @@ typedef struct message_packet{
 }msg_packet_t;
 
 typedef struct group_list{
-	char u_id;
-	int group_num;
+	char u_id[MAX_ID_LEN];
+	int group_id;
 }group_list_t;
 
 #endif 
