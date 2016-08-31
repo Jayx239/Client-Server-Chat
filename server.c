@@ -137,9 +137,7 @@ int main(int argc, char *argv[]) {
 		pthread_mutex_unlock(&shared_msg->mutex_lock);		
 	}
 
-	/* [uncomment if you wish] requesting the removal of the shm object     --  shm_unlink() */
 	// Remove shared memory
-
 	if (shm_unlink(SHARED_OBJECT_PATH) != 0) {
 		perror("In shm_unlink()");
 		exit(1);
@@ -162,19 +160,25 @@ int connect_client(msg_packet_t* shared_msg)
 			snprintf(group_status_msg,MAX_MESSAGE_LEN,"Chat group %i joined\n",shared_msg->group_id);
 		}
 		strcpy(Groups[NumClients].u_id,shared_msg->sender_id);
-                Groups[NumClients].group_id = shared_msg->group_id;
-                strcpy(Clients[NumClients++],shared_msg->sender_id);
+		Groups[NumClients].group_id = shared_msg->group_id;
+		strcpy(Clients[NumClients++],shared_msg->sender_id);
 
 
 		strcpy(shared_msg->receiver_id,shared_msg->sender_id);
-                strcpy(shared_msg->sender_id,"SERV");
-                strcpy(shared_msg->message,group_status_msg);
+		strcpy(shared_msg->sender_id,"SERV");
+		strcpy(shared_msg->message,group_status_msg);
 
+		printf("New Connection, Client: %s Group: %d\n",Clients[NumClients-1], shared_msg->group_id);
+	}
+	else
+	{
+		strcpy(shared_msg->receiver_id,shared_msg->sender_id);
+		strcpy(shared_msg->sender_id,"SERV");		
+		strcpy(shared_msg->message,SERVER_FULL_MESSAGE);
+		printf("Connection Attemp, Client: %s Group: %d\nServer full... Connection Denied\n",Clients[NumClients-1], shared_msg->group_id);
 
 	}
 	int i;
-	//for(i=0; i<NumClients; i++)
-	printf("New Connection, Client: %s Group: %d\n",Clients[NumClients-1], shared_msg->group_id);
 	shared_msg->connection = CONNECTED;
 	shared_msg->message_type = SERVER_MESSAGE;
 }
@@ -187,7 +191,7 @@ int group_contains(int group_id)
 		if(Groups[i].group_id == group_id)
 			return 1;
 	}
-	
+
 	return 0;
 }
 int disconnect_client(msg_packet_t* shared_msg)
@@ -221,7 +225,6 @@ void send_direct_message(msg_packet_t* shared_msg)
 	printf("recip: %s sender: %s\n",shared_msg->receiver_id,shared_msg->sender_id);
 
 	shared_msg->message_type = SERVER_MESSAGE;
-	//shared_msg->message_type = DIRECT_MESSAGE;
 	pthread_mutex_unlock(&shared_msg->mutex_lock);
 	wait_for_response(shared_msg);
 	printf("Response Received\n");
@@ -232,7 +235,6 @@ void send_group_message(msg_packet_t* shared_msg)
 	pthread_mutex_lock(&shared_msg->mutex_lock);
 	printf("Sending group message to group: %d\n",shared_msg->group_id);
 	pthread_mutex_unlock(&shared_msg->mutex_lock);
-	//	shared_message->message_type = SERVER;
 	int i;
 	for(i=0; i < NumClients; i++)
 	{	
@@ -255,19 +257,16 @@ void send_group_message(msg_packet_t* shared_msg)
 
 void wait_for_response(msg_packet_t* shared_msg)
 {
-	//printf("waiting\n");
 	while(Keep_Alive)
 	{
 		pthread_mutex_lock(&shared_msg->mutex_lock);
-		//		printf("waiting");
-		if(shared_msg->message_type != SERVER_MESSAGE)//shared_msg->message_type == RESPONSE_MESSAGE || shared_msg->message_type == NULL_MESSAGE)
+		if(shared_msg->message_type != SERVER_MESSAGE)
 		{
 			pthread_mutex_unlock(&shared_msg->mutex_lock);
 			break;
 		}
 		pthread_mutex_unlock(&shared_msg->mutex_lock);
 	}
-	//printf("done waiting");
 	pthread_mutex_unlock(&shared_msg->mutex_lock);
 }
 
@@ -297,7 +296,7 @@ void send_error_message(msg_packet_t* shared_msg, int error_type)
 		shared_msg->message_type = SERVER_MESSAGE;
 		snprintf(shared_msg->message,MAX_MESSAGE_LEN,"Invalid Recipient Entered: %s\n",rec_id);	
 		pthread_mutex_unlock(&shared_msg->mutex_lock);
-		
+
 		wait_for_response(shared_msg);
 		pthread_mutex_lock(&shared_msg->mutex_lock);
 		printf("Response Received\n");

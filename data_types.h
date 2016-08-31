@@ -27,6 +27,8 @@
 // Error Message Keys
 #define INVALID_RECIPIENT 0
 
+// Error Messages
+#define SERVER_FULL_MESSAGE "The server is full with MAX_CLIENTS\n"
 
 
 typedef struct message_packet{
