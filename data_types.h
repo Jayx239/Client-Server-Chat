@@ -1,3 +1,6 @@
+/* Author: Jason Gallagher
+*  ECEC-353 Systems Programming Assignment 3 - Summer 2016
+*/
 #ifndef DATA_TYPES_H_ 
 #define DATA_TYPES_H_
 #include <pthread.h> 

@@ -1,15 +1,11 @@
-/*  Author: Naga Kandasamy
- *   *  Last modified: 01/14/2014
- *    *  
- *     *  server_code.c
+/*  Author: Jason Gallagher 
+ *    *  ECEC-353 Systems Programming Assignment 3 - Summer 2016
+ *     *  server.c
  *      *  
- *       *  This code snippet shows the use of memory mapping and persistency with POSIX objects. The server process generates a message 
- *        *  and leaves it in a shared segment. The segment is mapped in a persistent object meant to be subsequently open by a shared 
- *         *  memory client. The shared object is created and stored in the file system under /dev/shm
  *          *
  *           *  Compile as follows: 
  *            *
- *             *  gcc -o server server_code.c -lrt
+ *             *  gcc -o server server.c -lrt
  *              *
  *               *
  *                */

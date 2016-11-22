@@ -1,4 +1,4 @@
-# ECEC353-Assignment3 
+# ECEC353-Assignment3 - Client Server Chat 
 Drexel University ECEC-353 Systems Programming Assignment 3 Summer 2016
 Created by: Jason Gallagher
 

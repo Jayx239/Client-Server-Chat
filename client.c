@@ -1,12 +1,9 @@
-/* Author: Naga Kandasamy
- *  * Last modified: 01/14/2014
- *   *
- *    *  Illustrates memory mapping and persistency, with POSIX objects.The client reads and displays a message left it in the 
- *     *  memory segment image by the server, a file been mapped from a memory segment.
+/* Author: Jason Gallagher 
+ *   * ECEC-353 Systems Programming Assignment 3 - Summer 2016
  *      *
  *       *  Compile as follws: 
  *        *
- *         *  gcc -o client client_code.c -lrt
+ *         *  gcc -o client client.c -lrt
  *          *
  *           */
 
